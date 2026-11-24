@@ -1,0 +1,15 @@
+name: Forma Drive
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - run: sqllocaldb start MSSQLLocalDB
+      - run: dotnet test FormaDrive.Tests -c Release
+        env:
+          FORMA_TEST_SQLSERVER: 'Server=(localdb)\MSSQLLocalDB;Database=FormaDrive_test;Integrated Security=True;TrustServerCertificate=True'
+

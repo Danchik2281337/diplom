@@ -1,0 +1,54 @@
+@model VehiclePage
+@{
+    var c=Model.Car;
+    ViewData["Title"]=c.Name;
+    string Iso(DateTime d)=>d.ToString("yyyy-MM-ddTHH:mm");
+    var days=Tariff.Days(Model.Start,Model.End);
+    var extras=Tariff.Extras(Model.Location,Model.Seat);
+    var total=days*c.Rate+extras;
+    var back=Context.Request.Path+Context.Request.QueryString.ToString();
+}
+<div class="@(c.Premium?"premium-page":"")"><div class="wrap page"><a class="back" href="@("/"+Context.Request.QueryString+"#fleet")">← К автопарку</a>
+<div class="detail"><section><p class="muted">@(c.Premium?"Премиум":"Городской парк") / @c.Body</p><h1>@c.Name</h1>
+<div class="portrait"><img id="gallery-main" src="/img/@(c.Photo).jpg" alt="@c.Color · @c.Name"></div>
+@if(c.Premium){
+<div class="gallery-buttons" aria-label="Галерея автомобиля">
+<button type="button" class="secondary" data-gallery="/img/@(c.Photo).jpg" data-gallery-alt="@c.Name, экстерьер" aria-pressed="true">Экстерьер</button>
+<button type="button" class="secondary" data-gallery="/img/@(c.Photo)-interior.png" data-gallery-alt="@c.Name, салон" aria-pressed="false">Салон</button>
+</div>}
+<div class="specs"><div><small>Коробка</small><strong>@c.Transmission</strong></div><div><small>Места</small><strong>@c.Seats</strong></div><div><small>Цвет</small><strong>@c.Color</strong></div></div>
+<p>Багаж — @CarGuide.Luggage(c)</p><p>@CarGuide.Equipment(c)</p>
+@if(User.Identity!.IsAuthenticated){
+<form method="post" action="/account/favorite" data-favorite>
+    @Html.AntiForgeryToken()
+    <input type="hidden" name="carId" value="@c.Id">
+    <input type="hidden" name="returnUrl" value="@back">
+    <input type="hidden" name="save" value="@((!Model.Favorite).ToString())">
+    <button class="secondary favorite-button" aria-pressed="@Model.Favorite.ToString().ToLowerInvariant()">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21 3.5 13a5.6 5.6 0 0 1 8.5-7.3A5.6 5.6 0 0 1 20.5 13Z"/></svg>
+        <span>@(Model.Favorite?"В избранном":"В избранное")</span>
+    </button>
+    <p class="favorite-feedback" role="status"></p>
+</form>}
+else{<a class="textlink" href="@QueryHelpers.AddQueryString("/account/login","returnUrl",back)">Войти, чтобы сохранить в избранное</a>}
+<section class="availability" data-schedule="@c.Id" data-today="@RentalClock.Now.ToString("yyyy-MM-dd")">
+<h2>Когда поедем?</h2>
+<div class="calendar-controls"><button type="button" class="secondary" data-month="-1" aria-label="Предыдущий месяц">←</button><strong data-month-title></strong><button type="button" class="secondary" data-month="1" aria-label="Следующий месяц">→</button></div>
+<div class="availability-grid" role="group" aria-label="Календарь занятости"></div>
+<p class="calendar-help" aria-live="polite">Загружаем занятость…</p>
+<p class="muted">Отметка означает, что в течение дня есть занятые часы. Нажмите день получения, затем день возврата. Точное время можно изменить в форме.</p>
+<noscript>Даты и время можно выбрать в форме бронирования.</noscript>
+</section>
+</section><section class="panel"><h2>Ваша поездка</h2>
+<form class="stack" method="post" action="/cars/@c.Id/book" data-quote="@c.Id">@Html.AntiForgeryToken()
+<label>Получение<input name="start" type="datetime-local" required value="@Iso(Model.Start)"></label>
+<label>Возврат<input name="end" type="datetime-local" required value="@Iso(Model.End)"></label>
+<label>Пункт выдачи и возврата<select name="location"><option value="office">Офис в Минске</option><option value="airport" selected="@(Model.Location==Tariff.Airport)">Аэропорт Минск (+40 BYN)</option></select></label>
+<label class="check"><input name="seat" type="checkbox" value="true" checked="@Model.Seat">Детское кресло · 10 BYN за поездку</label>
+<div class="bill" aria-live="polite"><div><span>Аренда</span><b id="rental">@c.Rate × @days сут.</b></div><div><span>Дополнительно</span><b id="extras">@extras BYN</b></div>
+<div class="total"><span>Итого</span><strong id="total">@total BYN</strong></div><div><span>Возвратный залог</span><b>@c.Deposit BYN</b></div></div>
+<input type="hidden" name="expected" value="@total"><p id="quote-error" role="alert" hidden></p>
+<a id="alternatives" class="textlink" hidden>Найти свободные машины на эти даты →</a>
+@if(User.Identity!.IsAuthenticated){<button data-confirm class="primary">Подтвердить бронь</button>}
+else{<a id="reserve-login" class="button primary" href="@QueryHelpers.AddQueryString("/account/login","returnUrl",back)">Войти и забронировать</a>}
+<small>Оплата при получении. Каждые начатые 24 часа считаются сутками. Время минское.</small></form></section></div></div></div>

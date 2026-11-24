@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="FormaDrive/FormaDrive.csproj" />
+  <Project Path="FormaDrive.Tests/FormaDrive.Tests.csproj" />
+</Solution>

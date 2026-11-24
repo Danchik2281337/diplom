@@ -1,0 +1,33 @@
+@model Desk
+@{
+    ViewData["Title"]="Кабинет сотрудника";
+    string DateKey(DateTime day)=>day.ToString("yyyy-MM-dd");
+    var ru=CultureInfo.GetCultureInfo("ru-RU");
+}
+<div class="wrap page"><h1>Кабинет сотрудника</h1><div class="sections staff">
+<section><div class="section-head"><h2>Календарь автопарка</h2><div class="tabs">
+<a href="/staff?week=@DateKey(Model.Week.AddDays(-7))" aria-label="Предыдущая неделя">←</a><a href="/staff">Сегодня</a><a href="/staff?week=@DateKey(Model.Week.AddDays(7))" aria-label="Следующая неделя">→</a></div></div>
+<p class="muted">@Model.Week.ToString("dd MMMM",ru) — @Model.Week.AddDays(6).ToString("dd MMMM yyyy",ru)</p>
+<div class="scroll"><table><thead><tr><th>Автомобиль</th>@for(int i=0;i<7;i++){<th>@Model.Week.AddDays(i).ToString("ddd, dd.MM",ru)</th>}</tr></thead><tbody>
+@foreach(var c in Model.Cars){<tr><th>@c.Name</th>@for(int i=0;i<7;i++){var d=Model.Week.AddDays(i);<td>
+@foreach(var b in Model.Trips.Where(b=>b.CarId==c.Id && b.State!=TripState.Cancelled && b.Start<d.AddDays(1) && b.End>d)){
+<a class="slot @(TripSummary.Overdue(b,RentalClock.Now)?"overdue-slot":"")" href="/trips/@b.Id" data-trip-panel>№@b.Id · @(TripSummary.Overdue(b,RentalClock.Now)?"Просрочена":Tariff.Status(b.State))</a>}
+@if(Model.Service.Any(p=>p.CarId==c.Id && p.Start<d.AddDays(1) && p.End>d)){<span class="slot service">Сервис</span>}</td>}</tr>}
+</tbody></table></div></section><section><h2>Бронирования</h2>
+@if(Model.Trips.Count==0){<p class="muted">В выбранную неделю поездок нет.</p>}
+@foreach(var b in Model.Trips){<article class="trip" id="trip-@b.Id"><small>№@b.Id · @Tariff.Status(b.State)</small><h3>@b.Car.Name</h3>
+<p>@b.Member.Name · @b.Member.Email · @Tariff.Place(b.Location)</p><p>@b.Start.ToString("dd.MM.yyyy HH:mm") — @b.End.ToString("dd.MM.yyyy HH:mm") · @b.Total BYN · залог @b.Deposit BYN</p>
+@if(b.Seat){<p>Подготовить детское кресло</p>}
+@if(b.OutKm.HasValue){<p>Выдача: @b.OutKm км · @b.OutNotes</p>}
+@if(b.InKm.HasValue){<p>Возврат: @b.InKm км · @b.InNotes</p>}
+@if(TripSummary.Overdue(b,RentalClock.Now)){<p class="overdue-text">Задержка @TripSummary.Delay(b,RentalClock.Now)</p>}
+<a class="button primary" href="/trips/@b.Id" data-trip-panel>Открыть поездку</a>
+
+</article>}</section><section><h2>Плановое обслуживание</h2><form class="tools" method="post" action="/staff/maintenance">@Html.AntiForgeryToken()
+<label>Автомобиль<select name="carId">@foreach(var c in Model.Cars){<option value="@c.Id">@c.Name</option>}</select></label>
+<label>Начало<input type="datetime-local" name="start" required></label><label>Окончание<input type="datetime-local" name="end" required></label><button>Занять период</button></form></section>
+<section><h2>Суточные тарифы</h2><form class="tools" method="post" action="/staff/rate">@Html.AntiForgeryToken()
+<label>Автомобиль<select name="carId">@foreach(var c in Model.Cars){<option value="@c.Id">@c.Name · @c.Rate BYN</option>}</select></label><label>Новый тариф, BYN<input type="number" name="rate" min="1" max="10000" required></label><button>Сохранить</button></form></section>
+<section><h2>Спрос за месяц</h2><p class="muted">Брони с началом в @Model.Today.ToString("MM.yyyy"), кроме отменённых.</p>
+@foreach(var row in Model.Report){<div class="line"><span>@row.Name</span><b>@row.Trips</b></div>}</section>
+</div></div>

@@ -1,0 +1,16 @@
+@{
+    bool register=(bool)ViewData["Register"]!;
+    var title=register?"Создать аккаунт":"Вход в кабинет";
+    ViewData["Title"]=title;
+    var other=QueryHelpers.AddQueryString(register?"/account/login":"/account/register","returnUrl",(string)ViewData["Next"]!);
+}
+<div class="auth panel"><a class="back" href="/">← На главную</a><h1>@title</h1>
+@if(ViewData["Error"]!=null){<p class="notice danger" role="alert">@ViewData["Error"]</p>}
+<form method="post" action="@(register?"/account/register":"/account/login")" class="stack">@Html.AntiForgeryToken()
+<input type="hidden" name="returnUrl" value="@ViewData["Next"]">
+@if(register){<label>Имя<input name="name" autocomplete="name" required minlength="2" maxlength="80" value="@ViewData["Name"]"></label>}
+<label>Электронная почта<input type="email" name="email" autocomplete="email" required maxlength="254" value="@ViewData["Email"]"></label>
+<label>Пароль<input type="password" name="password" autocomplete="@(register?"new-password":"current-password")" required minlength="@(register?8:1)" maxlength="128"></label>
+@if(register){<small>От 8 до 128 символов.</small>}
+<button class="primary">@(register?"Зарегистрироваться":"Войти")</button></form>
+<a class="textlink" href="@other">@(register?"Уже есть аккаунт? Войти":"Создать аккаунт")</a></div>

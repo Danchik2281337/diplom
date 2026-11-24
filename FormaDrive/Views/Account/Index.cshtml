@@ -1,0 +1,54 @@
+@model AccountPage
+@{
+    ViewData["Title"]="Личный кабинет";
+    var upcoming=Model.Bookings.Where(b=>b.State is TripState.Active or TripState.Confirmed)
+        .OrderByDescending(b=>b.State==TripState.Active).ThenBy(b=>b.Start).ToList();
+    var history=Model.Bookings.Except(upcoming).ToList();
+}
+@if(TempData["BookingId"] is int number){
+<dialog class="booking-success" aria-labelledby="success-title">
+    <span class="success-check" aria-hidden="true">✓</span>
+    <h2 id="success-title">Можно планировать поездку</h2>
+    <p>Бронь №@number подтверждена. Машина закреплена за вами на выбранные даты.</p>
+    <a class="button primary" href="/trips/@number">Посмотреть поездку</a>
+    <button type="button" class="secondary" data-close-success>В личный кабинет</button>
+</dialog>
+}
+<div class="wrap page"><div class="section-head"><h1>Личный кабинет</h1>
+<form method="post" action="/account/logout">@Html.AntiForgeryToken()<button class="secondary">Выйти</button></form></div>
+<div class="dashboard"><aside><a href="#trips">Мои поездки</a><a href="#history">История</a><a href="#favorites">Избранное</a><a href="#profile">Профиль</a>
+@if(User.IsInRole("Staff")){<a href="/staff">Кабинет сотрудника ↗</a>}</aside><div class="sections">
+<section id="trips"><h2>Мои поездки</h2>
+@if(upcoming.Count>0){
+    var next=upcoming[0];
+    <div class="next-trip">
+        <img src="/img/@(next.Car.Photo).jpg" alt="@next.Car.Name">
+        <div><small>Ваша ближайшая поездка</small><h3>@next.Car.Name</h3>
+        <p>@(next.State==TripState.Active?"Возврат":"Получение") @((next.State==TripState.Active?next.End:next.Start).ToString("dd.MM.yyyy HH:mm"))</p>
+        <a class="button primary" href="/trips/@next.Id">Данные поездки</a></div>
+    </div>
+}
+@if(upcoming.Count==0){<div class="empty"><h3>Предстоящих поездок пока нет</h3><a href="/#fleet">Выбрать автомобиль →</a></div>}
+@foreach(var b in upcoming){
+<article class="trip"><div class="trip-top"><img src="/img/@(b.Car.Photo).jpg" alt=""><div><small>Бронь №@b.Id · @Tariff.Status(b.State)</small><h3>@b.Car.Name</h3><p>@b.Start.ToString("dd.MM.yyyy HH:mm") — @b.End.ToString("dd.MM.yyyy HH:mm")</p></div></div>
+<ol class="trip-progress"><li class="complete">Бронь подтверждена</li><li class="@(b.OutKm.HasValue?"complete":"")">Машина получена</li><li>Возврат оформлен</li></ol>
+@if(TripSummary.Overdue(b,RentalClock.Now)){<p class="notice danger">Возврат просрочен на @TripSummary.Delay(b,RentalClock.Now). Свяжитесь с прокатом.</p>}
+<p><a class="textlink" href="/trips/@b.Id">Осмотры, оплата и документы →</a></p>
+<div class="trip-info"><span>@Tariff.Place(b.Location) · @(b.Location==Tariff.Airport?"терминал, зона прилёта":"пр. Независимости, 95")</span>
+<span>Аренда <b>@b.Total BYN</b> · Залог @b.Deposit BYN</span>@if(b.Seat){<span>Детское кресло включено</span>}</div>
+<details><summary>Продлить аренду</summary>
+<form class="stack extend" method="post" action="/account/trips/@b.Id/extend" data-start="@b.Start.ToString("yyyy-MM-ddTHH:mm")" data-rate="@b.DailyRate" data-extras="@b.Extras" data-original="@b.Total">@Html.AntiForgeryToken()
+<label>Новое время возврата<input type="datetime-local" name="until" required min="@b.End.AddMinutes(1).ToString("yyyy-MM-ddTHH:mm")"></label><output aria-live="polite"></output>
+<button>Подтвердить продление</button></form></details>
+@if(b.State==TripState.Confirmed && b.Start>RentalClock.Now){<details><summary>Отменить бронь</summary><form method="post" action="/account/trips/@b.Id/cancel">@Html.AntiForgeryToken()<p>Автомобиль снова станет доступен на эти даты.</p><button class="secondary">Подтвердить отмену</button></form></details>}
+</article>}
+</section><section id="history"><h2>История поездок</h2>
+@if(history.Count==0){<p class="muted">Здесь появятся завершённые и отменённые поездки.</p>}
+@foreach(var b in history){<div class="line"><div><a href="/trips/@b.Id"><strong>@b.Car.Name</strong> · Документы и расчёт →</a><p>№@b.Id · @b.Start.ToString("dd.MM.yyyy") · @Tariff.Status(b.State)</p>
+@if(b.InKm.HasValue){<small>Пройдено @(b.InKm-b.OutKm) км</small>}</div><b>@b.Total BYN</b></div>}</section>
+<section id="favorites"><h2>Избранное</h2>
+@if(Model.Favorites.Count==0){<p class="muted">Сохраните понравившиеся машины из карточки автомобиля.</p>}
+@foreach(var c in Model.Favorites){<div class="line"><a href="/cars/@c.Id">@c.Name ↗</a><form method="post" action="/account/favorite">@Html.AntiForgeryToken()<input type="hidden" name="carId" value="@c.Id"><button class="secondary">Убрать</button></form></div>}</section>
+<section id="profile"><h2>Профиль</h2><p>@Model.Member.Email</p><form method="post" action="/account/profile" class="stack slim">@Html.AntiForgeryToken()
+<label>Имя<input name="name" required minlength="2" maxlength="80" value="@Model.Member.Name"></label><button>Сохранить имя</button></form></section>
+</div></div></div>

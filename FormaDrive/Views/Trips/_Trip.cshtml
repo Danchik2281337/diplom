@@ -1,0 +1,132 @@
+@model TripPage
+@{
+    var b = Model.Booking;
+    var now = RentalClock.Now;
+    bool overdue = TripSummary.Overdue(b, now);
+    bool canIssue = b.State == TripState.Confirmed && now >= b.Start && now < b.End;
+    bool canInspect = b.State == TripState.Confirmed || b.State == TripState.Active;
+    bool returning = b.State == TripState.Active;
+}
+<div class="trip-detail">
+    <div class="trip-detail-heading">
+        <div>
+            <span class="status @(overdue ? "late" : "")">@(overdue ? "Возврат просрочен" : Tariff.Status(b.State))</span>
+            <h2>@b.Car.Name</h2>
+            <p>Поездка №@b.Id · @b.Member.Name</p>
+        </div>
+        <img src="/img/@(b.Car.Photo).jpg" alt="@b.Car.Name">
+    </div>
+    <ol class="trip-progress" aria-label="Этапы поездки">
+        <li class="complete">Бронь подтверждена</li>
+        <li class="@(b.OutKm.HasValue ? "complete" : "")">Машина получена</li>
+        <li class="@(b.State == TripState.Finished ? "complete" : "")">Возврат оформлен</li>
+    </ol>
+    <p><strong>@b.Start.ToString("dd.MM.yyyy HH:mm") — @b.End.ToString("dd.MM.yyyy HH:mm")</strong></p>
+    <p>@Tariff.Place(b.Location) · время минское</p>
+    @if (b.Seat) { <p>Детское кресло включено</p> }
+    @if (overdue)
+    {
+        <div class="notice danger" role="status">
+            <strong>Задержка @TripSummary.Delay(b, now)</strong>
+            @if (Model.NextTrip != null)
+            {
+                <p>Следующая выдача — @Model.NextTrip.Start.ToString("dd.MM.yyyy HH:mm"), бронь №@Model.NextTrip.Id.</p>
+            }
+        </div>
+    }
+    <div class="money-summary">
+        <div><small>Аренда</small><strong>@b.Total BYN</strong></div>
+        <div><small>Оплачено</small><strong>@TripSummary.Paid(b) BYN</strong></div>
+        <div><small>Осталось оплатить</small><strong>@(b.Total - TripSummary.Paid(b)) BYN</strong></div>
+        <div><small>Залог получен / требуется</small><strong>@TripSummary.DepositReceived(b) / @b.Deposit BYN</strong></div>
+        <div><small>Залог возвращён</small><strong>@TripSummary.DepositRefunded(b) BYN</strong></div>
+        <div><small>Удержано / осталось вернуть</small><strong>@TripSummary.DepositWithheld(b) / @TripSummary.DepositBalance(b) BYN</strong></div>
+    </div>
+
+    @if (Model.Staff && canInspect)
+    {
+        <section class="trip-section">
+            <h3>@(returning ? "Оформить возврат" : "Оформить выдачу")</h3>
+            @if (!returning && !canIssue)
+            {
+                <p class="notice">@(now < b.Start ? $"Выдача доступна с {b.Start:dd.MM.yyyy HH:mm} по Минску." : "Срок брони истёк.")</p>
+            }
+            <form class="stack inspection-form" method="post" enctype="multipart/form-data" action="/staff/trips/@b.Id/@(returning ? "return" : "issue")">
+                @Html.AntiForgeryToken()
+                <label>Пробег, км<input type="number" name="km" min="@b.Car.Mileage" max="2147483647" value="@b.Car.Mileage" required></label>
+                <label>Состояние автомобиля<textarea name="notes" maxlength="500" rows="3" required placeholder="Кузов, салон, топливо и замечания при осмотре"></textarea></label>
+                <fieldset class="damage-map">
+                    <legend>Отметьте зоны с повреждениями</legend>
+                    <div class="car-outline" aria-hidden="true">Передняя часть<br><span>Автомобиль</span><br>Задняя часть</div>
+                    <div class="damage-options">
+                        @foreach (var zone in TripSummary.DamageZones)
+                        {
+                            <label class="check"><input type="checkbox" name="zones" value="@zone.Key">@zone.Value</label>
+                        }
+                    </div>
+                    <small>Если повреждений нет, оставьте зоны пустыми и укажите это в описании.</small>
+                </fieldset>
+                <label>Фотографии осмотра<input type="file" name="photos" multiple accept="image/jpeg,image/png" data-photo-input></label>
+                <small>До 6 фотографий JPEG или PNG, каждая до 5 МБ. Добавьте кузов, салон и одометр.</small>
+                <div class="upload-preview" aria-live="polite"></div>
+                <button class="primary" disabled="@(!returning && !canIssue)">@(returning ? "Подтвердить возврат" : "Подтвердить выдачу")</button>
+            </form>
+        </section>
+    }
+
+    @if (Model.Staff)
+    {
+        <section class="trip-section">
+            <h3>Оплата и залог</h3>
+            <form class="stack" method="post" action="/staff/trips/@b.Id/payment">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="requestId" value="@Guid.NewGuid()">
+                <label>Операция<select name="kind">
+                    <option value="Rental">Получить оплату аренды</option>
+                    <option value="DepositReceived">Получить залог</option>
+                    <option value="DepositRefunded">Вернуть залог</option>
+                    <option value="DepositWithheld">Удержать из залога</option>
+                </select></label>
+                <label>Сумма, BYN<input type="number" name="amount" min="1" max="1000000" required></label>
+                <label>Примечание<textarea name="note" maxlength="500" rows="2" placeholder="Для удержания укажите причину"></textarea></label>
+                <small>Возврат залога доступен после завершения или отмены. Удержание — после завершения.</small>
+                <button>Сохранить операцию</button>
+            </form>
+        </section>
+    }
+
+    @if (b.Payments.Count > 0)
+    {
+        <section class="trip-section">
+            <h3>История расчётов</h3>
+            @foreach (var payment in b.Payments.OrderBy(p => p.CreatedAt).ThenBy(p => p.Id))
+            {
+                <div class="line">
+                    <div><strong>@TripSummary.PaymentName(payment.Kind)</strong><p>@payment.CreatedAt.ToString("dd.MM.yyyy HH:mm") · @payment.Note</p></div>
+                    <strong>@payment.Amount BYN</strong>
+                </div>
+            }
+        </section>
+    }
+    @foreach (var inspection in b.Inspections.OrderBy(i => i.CreatedAt))
+    {
+        <section class="trip-section">
+            <h3>Осмотр при @(inspection.IsReturn ? "возврате" : "выдаче")</h3>
+            <p>@inspection.CreatedAt.ToString("dd.MM.yyyy HH:mm") · @inspection.Mileage км</p>
+            <p>@inspection.Notes</p>
+            <p>Повреждения — @(string.IsNullOrEmpty(inspection.DamageZones) ? "не отмечены" : TripSummary.Zones(inspection.DamageZones))</p>
+            <div class="inspection-gallery">
+                @foreach (var photo in inspection.Photos)
+                {
+                    <a href="/trips/photos/@photo.Id" target="_blank" rel="noopener"><img src="/trips/photos/@photo.Id" alt="Фото осмотра @inspection.CreatedAt.ToString("dd.MM.yyyy")" loading="lazy"></a>
+                }
+            </div>
+        </section>
+    }
+    <div class="trip-document-links">
+        @if (b.OutKm.HasValue) { <a class="button secondary" href="/trips/@b.Id/document/issue">Акт выдачи · PDF</a> }
+        @if (b.InKm.HasValue) { <a class="button secondary" href="/trips/@b.Id/document/return">Акт возврата · PDF</a> }
+        <a class="button secondary" href="/cars/@b.CarId">Забронировать снова</a>
+    </div>
+</div>
+

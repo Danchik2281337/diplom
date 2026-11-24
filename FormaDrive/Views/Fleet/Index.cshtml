@@ -1,0 +1,55 @@
+@model Catalog
+@{
+    ViewData["Title"]="Аренда авто в Минске";
+    var s=Model.Search;
+    string? Local(DateTime? d) => d?.ToString("yyyy-MM-ddTHH:mm");
+    string Link(string path,string? tab=null) {
+        var args=new Dictionary<string,string?> {["start"]=Local(s.Start),["end"]=Local(s.End),["location"]=s.Location};
+        if(tab!=null){args["tab"]=tab;args["gear"]=s.Gear;args["seats"]=s.Seats?.ToString();args["purpose"]=s.Purpose;}
+        return QueryHelpers.AddQueryString(path,args);
+    }
+}
+<div class="@(s.Tab=="premium"?"premium-page":"")">
+<section class="hero"><div class="wrap hero-inner"><div class="hero-copy"><h1>@(s.Tab=="premium"?"Особенный":"Аренда авто")<br>@(s.Tab=="premium"?"повод":"в Минске")</h1><p>@(s.Tab=="premium"?"Porsche 911 и BMW 530i для поездки, которую запомнят.":"От городского хэтчбека до спортивного купе.")<br>Выберите машину на свои даты.</p></div>
+<form class="searchbar" action="/#fleet" method="get"><input type="hidden" name="tab" value="@s.Tab">
+@if(!string.IsNullOrWhiteSpace(s.Gear)){<input type="hidden" name="gear" value="@s.Gear">}
+@if(s.Seats.HasValue){<input type="hidden" name="seats" value="@s.Seats">}
+<input type="hidden" name="purpose" value="@s.Purpose">
+<label>Пункт выдачи<select name="location"><option value="office" selected="@(s.Location != Tariff.Airport)">Офис в Минске</option><option value="airport" selected="@(s.Location == Tariff.Airport)">Аэропорт Минск</option></select></label>
+<label>Получение<input type="datetime-local" name="start" required value="@Local(s.Start ?? RentalClock.Now.Date.AddDays(1).AddHours(10))"></label>
+<label>Возврат<input type="datetime-local" name="end" required value="@Local(s.End ?? RentalClock.Now.Date.AddDays(3).AddHours(10))"></label>
+<button class="primary">Найти авто <span aria-hidden="true">→</span></button>
+</form></div></section>
+<section class="wrap fleet" id="fleet"><div class="fleetbar"><h2>Автопарк</h2><div class="tabs" aria-label="Категория">
+@foreach(var (key,label) in new[]{("all","Все"),("city","Городские"),("premium","Премиум")}){
+<a class="@(s.Tab==key?"on":"")" href="@(Link("/",key)+"#fleet")">@label</a>}</div>
+<details class="filters"><summary>Фильтры</summary><form method="get" action="/#fleet" class="stack">
+<input type="hidden" name="tab" value="@s.Tab"><input type="hidden" name="location" value="@s.Location">
+<input type="hidden" name="purpose" value="@s.Purpose">
+@if(s.Start.HasValue){<input type="hidden" name="start" value="@Local(s.Start)"><input type="hidden" name="end" value="@Local(s.End)">}
+<label>Коробка<select name="gear"><option value="">Любая</option><option selected="@(s.Gear=="Автомат")">Автомат</option><option selected="@(s.Gear=="Механика")">Механика</option></select></label>
+<label>Мест<select name="seats"><option value="">Любое число</option><option value="5" selected="@(s.Seats==5)">От 5 мест</option></select></label><button>Применить</button></form></details></div>
+<div class="purpose-picker" aria-label="Для какой поездки">
+@foreach(var (key,title) in new[]{("city","По городу"),("family","С семьёй"),("weekend","На выходные"),("occasion","Особый случай")}){
+    var purposeUrl=QueryHelpers.AddQueryString("/",new Dictionary<string,string?>{["purpose"]=key,["start"]=Local(s.Start),["end"]=Local(s.End),["location"]=s.Location});
+    <a href="@(purposeUrl+"#fleet")" class="@(s.Purpose==key?"on":"")">@title</a>
+}
+</div>
+@if(!string.IsNullOrEmpty(s.Purpose)){<p class="purpose-description">@CarGuide.Purpose(s.Purpose)</p>}
+@if(s.Start.HasValue || !string.IsNullOrEmpty(s.Gear) || s.Seats.HasValue || !string.IsNullOrEmpty(s.Purpose)){
+<p class="result">Найдено машин: @Model.Cars.Count @if(s.Start.HasValue && s.End.HasValue){<span> · @s.Start.Value.ToString("dd.MM HH:mm") — @s.End.Value.ToString("dd.MM HH:mm")</span>} <a href="/?tab=@s.Tab#fleet">Сбросить поиск</a></p>}
+@if(ViewData["Error"]!=null){<p class="notice danger">@ViewData["Error"]</p>}
+<div class="car-grid">
+@foreach(var c in Model.Cars){
+<div class="car-option">
+<a class="car-card" href="@Link("/cars/"+c.Id)"><div class="car-photo"><img src="/img/@(c.Photo).jpg" alt="@c.Color · @c.Name" loading="lazy"></div>
+<div class="card-text"><small>@(c.Premium?"Премиум":"Городские") <span> / </span> @c.Body</small><h3>@c.Name</h3>
+<p>@c.Transmission <span>·</span> @c.Seats мест@(c.Seats==4?"а":"")</p><div class="card-bottom">
+@if(s.Start.HasValue && s.End.HasValue){<strong>@(Tariff.Days(s.Start.Value,s.End.Value)*c.Rate+Tariff.Extras(s.Location,false)) BYN <em>/ период</em></strong>}
+else {<strong>@c.Rate BYN <em>/ сутки</em></strong>}<span aria-hidden="true">↗</span></div></div></a>
+<label class="check compare-choice"><input type="checkbox" data-compare-id="@c.Id">Сравнить @c.Name</label>
+</div>
+}</div>
+@if(Model.Cars.Count==0){<div class="empty"><h3>Свободных машин не найдено</h3><p>Попробуйте другие даты или измените фильтры.</p><a href="/#fleet">Посмотреть весь автопарк</a></div>}
+</section>
+</div>

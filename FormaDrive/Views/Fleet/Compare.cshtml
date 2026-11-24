@@ -1,0 +1,45 @@
+@model Comparison
+@{
+    ViewData["Title"] = "Сравнение автомобилей";
+    string? Iso(DateTime? d) => d?.ToString("yyyy-MM-ddTHH:mm");
+}
+<div class="wrap page">
+    <a class="back" href="/#fleet">← К автопарку</a><h1>Сравнение автомобилей</h1>
+    @if (Model.Cars.Count == 0)
+    {
+        <div class="empty"><h2>Выберите до трёх машин</h2><p>В каталоге нажмите «Сравнить» у понравившихся автомобилей.</p></div>
+    }
+    else
+    {
+        <form class="tools" action="/compare" method="get">
+            @foreach (var car in Model.Cars) { <input type="hidden" name="ids" value="@car.Id"> }
+            <label>Получение<input type="datetime-local" name="start" value="@Iso(Model.Start)" required></label>
+            <label>Возврат<input type="datetime-local" name="end" value="@Iso(Model.End)" required></label>
+            <label>Пункт<select name="location"><option value="office">Офис в Минске</option><option value="airport" selected="@(Model.Location == Tariff.Airport)">Аэропорт Минск</option></select></label>
+            <button>Пересчитать поездку</button>
+        </form>
+        @if (ViewData["Error"] != null) { <p class="notice danger">@ViewData["Error"]</p> }
+        <p class="muted">Стоимость указана без детского кресла. Залог возвращается после приёмки автомобиля.</p>
+        <div class="scroll compare-table">
+            <table><thead><tr><th>Характеристики</th>@foreach(var car in Model.Cars){<th><img src="/img/@(car.Photo).jpg" alt=""><h2>@car.Name</h2></th>}</tr></thead><tbody>
+                <tr><th>За сутки</th>@foreach(var car in Model.Cars){<td>@car.Rate BYN</td>}</tr>
+                <tr><th>За поездку</th>@foreach(var car in Model.Cars){<td>
+                    @if(Model.Start.HasValue && Model.End.HasValue && Model.End.Value > Model.Start.Value && ViewData["Error"] == null){<strong>@(Tariff.Days(Model.Start.Value,Model.End.Value)*car.Rate+Tariff.Extras(Model.Location,false)) BYN</strong>}
+                    else{<span>Выберите даты</span>}
+                </td>}</tr>
+                <tr><th>Залог</th>@foreach(var car in Model.Cars){<td>@car.Deposit BYN</td>}</tr>
+                <tr><th>Коробка</th>@foreach(var car in Model.Cars){<td>@car.Transmission</td>}</tr>
+                <tr><th>Места</th>@foreach(var car in Model.Cars){<td>@car.Seats</td>}</tr>
+                <tr><th>Багаж</th>@foreach(var car in Model.Cars){<td>@CarGuide.Luggage(car)</td>}</tr>
+                <tr><th>Оснащение</th>@foreach(var car in Model.Cars){<td>@CarGuide.Equipment(car)</td>}</tr>
+                <tr><th>Выбор</th>@foreach(var car in Model.Cars){<td>
+                    @if(Model.Available.Contains(car.Id)){
+                        var url=QueryHelpers.AddQueryString("/cars/"+car.Id,new Dictionary<string,string?>{["start"]=Iso(Model.Start),["end"]=Iso(Model.End),["location"]=Model.Location});
+                        <a class="button primary" href="@url">Выбрать</a>
+                    }else{<span>Занят или даты не заданы</span>}
+                </td>}</tr>
+            </tbody></table>
+        </div>
+    }
+</div>
+

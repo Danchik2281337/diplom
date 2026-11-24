@@ -1,0 +1,7 @@
+@model TripPage
+@{ ViewData["Title"] = $"Поездка №{Model.Booking.Id}"; }
+<div class="wrap page">
+    <a class="back" href="@(Model.Staff ? "/staff" : "/account")">← @(Model.Staff ? "К календарю" : "В личный кабинет")</a>
+    @await Html.PartialAsync("_Trip", Model)
+</div>
+

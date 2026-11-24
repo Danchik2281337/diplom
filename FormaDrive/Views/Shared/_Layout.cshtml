@@ -1,0 +1,28 @@
+@inject FleetDb HeaderDb
+@{
+    int unread = 0;
+    if (User.Identity?.IsAuthenticated == true)
+    {
+        int member = int.Parse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)!.Value);
+        unread = await HeaderDb.Notifications.CountAsync(n => n.MemberId == member && n.ReadAt == null);
+    }
+}
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>@ViewData["Title"] · Forma Drive</title><link rel="stylesheet" href="/site.css"><link rel="stylesheet" href="/experience.css"><link rel="icon" href="/favicon.svg" type="image/svg+xml"></head>
+<body><a class="skip" href="#main">К содержанию</a>
+<header><div class="wrap head"><a class="brand" href="/" aria-label="Forma Drive, главная">FORMA <i>/</i> DRIVE</a>
+<nav aria-label="Главное меню"><a href="/#fleet">Автопарк</a><a href="/?tab=premium#fleet">Премиум</a>
+@if(User.IsInRole("Staff")){<a href="/staff">Прокат</a>}
+@if(User.Identity?.IsAuthenticated == true){<a href="/notifications">Уведомления @(unread > 0 ? $"({unread})" : "")</a>}</nav>
+<a class="account-link" href="/account"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M4 21v-2a8 6 0 0 1 16 0v2z"/></svg><span>Личный кабинет</span></a></div></header>
+<main id="main">
+@if(TempData["Message"] is string msg){<div class="wrap notice" role="status">@msg</div>}
+@if(TempData["Error"] is string err){<div class="wrap notice danger" role="alert">@err</div>}
+@RenderBody()</main><footer><div class="wrap foot"><a class="brand" href="/">FORMA <i>/</i> DRIVE</a><span>Минск · Посуточная аренда автомобилей</span></div></footer>
+<div class="compare-tray" hidden><span data-compare-count role="status"></span><a class="button primary" data-compare-link href="/compare">Сравнить</a><button class="secondary" data-compare-clear>Очистить</button></div>
+<dialog class="trip-drawer" aria-labelledby="drawer-heading">
+    <div class="drawer-toolbar"><h2 id="drawer-heading">Данные поездки</h2><button type="button" class="secondary" data-close-drawer aria-label="Закрыть данные поездки">Закрыть</button></div>
+    <div data-drawer-content></div>
+</dialog>
+<script src="/site.js" defer></script><script src="/experience.js" defer></script><script src="/favorite.js" defer></script></body></html>

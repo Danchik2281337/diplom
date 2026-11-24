@@ -1,0 +1,31 @@
+@model Inbox
+@{ ViewData["Title"] = "Уведомления"; }
+<div class="wrap page inbox">
+    <h1>Уведомления</h1>
+    @foreach (var reminder in Model.Reminders)
+    {
+        <a class="notice reminder" href="/trips/@reminder.BookingId">
+            <strong>Поездка №@reminder.BookingId</strong><span>@reminder.Text</span>
+        </a>
+    }
+    @if (Model.Messages.Count == 0 && Model.Reminders.Count == 0)
+    {
+        <div class="empty"><h2>Вы всё прочитали</h2><p>Здесь появятся события и напоминания о поездках.</p></div>
+    }
+    @foreach (var message in Model.Messages)
+    {
+        <article class="notification @(message.ReadAt == null ? "unread" : "")">
+            <small>@message.CreatedAt.ToString("dd.MM.yyyy HH:mm")</small>
+            <p><a href="/trips/@message.BookingId">@message.Text</a></p>
+            @if (message.ReadAt == null)
+            {
+                <form method="post" action="/notifications/read">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="id" value="@message.Id">
+                    <button class="secondary">Прочитано</button>
+                </form>
+            }
+        </article>
+    }
+</div>
+
